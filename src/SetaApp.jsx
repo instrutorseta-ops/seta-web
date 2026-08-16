@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase } from "./supabaseClient";
 
 const ORANGE = "#F4762A";
 const GRAPHITE = "#2B2B33";
@@ -165,6 +166,94 @@ function AvatarUpload({ hasPhoto, onSetPhoto, size = 84 }) {
         <i className={hasPhoto ? "ti ti-pencil" : "ti ti-plus"} style={{ fontSize: size * 0.15, color: hasPhoto ? ORANGE : "#fff" }} />
       </div>
     </div>
+  );
+}
+
+function InstructorRegisterReal({ onRegistered, onBack }) {
+  const [fullName, setFullName] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [phone, setPhone] = useState("");
+  const [credentialCode, setCredentialCode] = useState("");
+  const [credentialState, setCredentialState] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | saving | error
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async () => {
+    if (!fullName || !cpf || !phone || !credentialCode || !credentialState) {
+      setStatus("error");
+      setErrorMsg("Preencha todos os campos antes de continuar.");
+      return;
+    }
+    setStatus("saving");
+    setErrorMsg("");
+
+    // 1. Cria o usuário base
+    const { data: userRow, error: userError } = await supabase
+      .from("users")
+      .insert({
+        role: "instrutor",
+        full_name: fullName,
+        cpf,
+        phone_whatsapp: phone,
+      })
+      .select()
+      .single();
+
+    if (userError) {
+      setStatus("error");
+      setErrorMsg("Erro ao salvar cadastro: " + userError.message);
+      return;
+    }
+
+    // 2. Cria o registro específico de instrutor, ligado ao usuário acima
+    const { error: instructorError } = await supabase.from("instructors").insert({
+      user_id: userRow.id,
+      detran_credential_code: credentialCode,
+      detran_state: credentialState.toUpperCase(),
+    });
+
+    if (instructorError) {
+      setStatus("error");
+      setErrorMsg("Erro ao salvar credencial: " + instructorError.message);
+      return;
+    }
+
+    setStatus("idle");
+    onRegistered(userRow);
+  };
+
+  return (
+    <PhoneFrame>
+      <Header eyebrow="cadastro real" title="dados do instrutor" />
+      <div style={{ padding: 20, flex: 1 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 12, color: "#666", padding: 0, marginBottom: 12, cursor: "pointer" }}>
+          <i className="ti ti-arrow-left" style={{ fontSize: 14, verticalAlign: -2 }} /> voltar
+        </button>
+
+        <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>nome completo</label>
+        <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="seu nome" style={{ width: "100%", marginBottom: 12, boxSizing: "border-box" }} />
+
+        <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>cpf</label>
+        <input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="somente números" style={{ width: "100%", marginBottom: 12, boxSizing: "border-box" }} />
+
+        <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>whatsapp</label>
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+5511999999999" style={{ width: "100%", marginBottom: 12, boxSizing: "border-box" }} />
+
+        <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>credencial detran</label>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <input value={credentialCode} onChange={(e) => setCredentialCode(e.target.value)} placeholder="SP-000000" style={{ flex: 1.4, boxSizing: "border-box" }} />
+          <input value={credentialState} onChange={(e) => setCredentialState(e.target.value)} placeholder="UF" maxLength={2} style={{ flex: 0.6, boxSizing: "border-box" }} />
+        </div>
+
+        {status === "error" && (
+          <p style={{ fontSize: 12, color: "#A32D2D", marginBottom: 12 }}>{errorMsg}</p>
+        )}
+
+        <PrimaryButton onClick={handleSubmit} style={{ opacity: status === "saving" ? 0.6 : 1 }}>
+          {status === "saving" ? "salvando..." : "salvar cadastro real"}
+        </PrimaryButton>
+      </div>
+    </PhoneFrame>
   );
 }
 
@@ -483,6 +572,8 @@ function ConfirmationScreen({ instructor, time, onDone }) {
 
 export default function SetaApp() {
   const [role, setRole] = useState(null);
+  const [instructorFlow, setInstructorFlow] = useState("register"); // register | dashboard
+  const [registeredInstructor, setRegisteredInstructor] = useState(null);
   const [instructorTab, setInstructorTab] = useState("home");
   const [screen, setScreen] = useState("home");
   const [selectedInstructor, setSelectedInstructor] = useState(null);
@@ -494,6 +585,7 @@ export default function SetaApp() {
     setRole(null);
     setScreen("home");
     setInstructorTab("home");
+    setInstructorFlow("register");
   };
 
   const takeoverConversation = (id) => {
@@ -504,7 +596,17 @@ export default function SetaApp() {
     <div style={{ padding: "1.5rem 0", fontFamily: "var(--font-sans, sans-serif)" }}>
       {!role && <RoleSelect onSelect={setRole} />}
 
-      {role === "instructor" && (
+      {role === "instructor" && instructorFlow === "register" && (
+        <InstructorRegisterReal
+          onBack={reset}
+          onRegistered={(userRow) => {
+            setRegisteredInstructor(userRow);
+            setInstructorFlow("dashboard");
+          }}
+        />
+      )}
+
+      {role === "instructor" && instructorFlow === "dashboard" && (
         <InstructorDashboard
           tab={instructorTab}
           setTab={setInstructorTab}
