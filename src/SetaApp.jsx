@@ -179,9 +179,9 @@ function InstructorRegisterReal({ onRegistered, onBack }) {
   const [errorMsg, setErrorMsg] = useState("");
 
   const handleSubmit = async () => {
-    if (!fullName || !cpf || !phone || !credentialCode || !credentialState) {
+    if (!fullName || !cpf || !phone) {
       setStatus("error");
-      setErrorMsg("Preencha todos os campos antes de continuar.");
+      setErrorMsg("Preencha nome, CPF e WhatsApp antes de continuar.");
       return;
     }
     setStatus("saving");
@@ -206,10 +206,11 @@ function InstructorRegisterReal({ onRegistered, onBack }) {
     }
 
     // 2. Cria o registro específico de instrutor, ligado ao usuário acima
+    // (credencial ainda é opcional nesta fase de teste)
     const { error: instructorError } = await supabase.from("instructors").insert({
       user_id: userRow.id,
-      detran_credential_code: credentialCode,
-      detran_state: credentialState.toUpperCase(),
+      detran_credential_code: credentialCode || null,
+      detran_state: credentialState ? credentialState.toUpperCase() : null,
     });
 
     if (instructorError) {
@@ -239,7 +240,9 @@ function InstructorRegisterReal({ onRegistered, onBack }) {
         <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>whatsapp</label>
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+5511999999999" style={{ width: "100%", marginBottom: 12, boxSizing: "border-box" }} />
 
-        <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>credencial detran</label>
+        <label style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>
+          credencial detran <span style={{ color: "#999", fontWeight: 400 }}>(opcional por enquanto)</span>
+        </label>
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           <input value={credentialCode} onChange={(e) => setCredentialCode(e.target.value)} placeholder="SP-000000" style={{ flex: 1.4, boxSizing: "border-box" }} />
           <input value={credentialState} onChange={(e) => setCredentialState(e.target.value)} placeholder="UF" maxLength={2} style={{ flex: 0.6, boxSizing: "border-box" }} />
